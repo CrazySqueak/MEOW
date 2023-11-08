@@ -1,6 +1,8 @@
 {
     "catfoodhome": {
         "title": "Back Garden 1",
-        "root": "recordings/"
+        "root": "recordings/",
+        "maxRecentRecordings": 72,
+        "archivedRecordingResolution": 240
     }
 }

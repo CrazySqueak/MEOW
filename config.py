@@ -28,4 +28,5 @@ def get_archive_params(cam):
         cconf.get("surveyFPS", 4),
         cconf.get("surveySpeed", 60),
         cconf.get("maxSurveyCount", 100),
+        cconf.get("archivedRecordingResolution", 360),
         )

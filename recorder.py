@@ -61,7 +61,6 @@ if not DEVICES:
 print("Selected Devices:", ", ".join(DEVICES))
 FFMPEG_DEVICE_ARGS = [x for device in DEVICES for x in ("-i", device)]  # FLATMAP WOO!!
 
-MAX_RECENT = ARCHIVE_PARAMS[0]
 MAX_FULLFILE_LEN = ARCHIVE_PARAMS[1]
 
 def mux_video(src):
@@ -89,7 +88,9 @@ def mux_video(src):
     os.remove(src)  # Delete old video
     progress.remove_task(tid)
     console.log("Muxed:", os.path.basename(muxed_file), highlight=False)
-    
+
+MAX_RECENT = ARCHIVE_PARAMS[0]
+ARCHIVE_RESOLUTION_H = ARCHIVE_PARAMS[6]
 def archive_video(src):
     archive_file = os.path.join(ARCHIVE_ROOT, os.path.splitext(os.path.basename(src))[0]) + ".mp4"
     if not os.path.exists(src): return
@@ -99,7 +100,7 @@ def archive_video(src):
         ffmpeg = subprocess.run([EXECUTABLE,
                                    "-y",
                                    "-i", src,
-                                   "-vf", "scale=-2:360",
+                                   "-vf", f"scale=-2:{ARCHIVE_RESOLUTION_H}",
                                    "-c:a", "copy",
                                    archive_file],
                                 check=True,
