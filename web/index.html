@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>MEOW - Moggy Eating Opportunity Watcher</title>
+        <style type="text/css">
+            .video {
+                background-color: black;
+            }
+            
+            .hidden {
+                display: none;
+            }
+            
+            @media screen and (orientation: landscape) {
+                .video {
+                    width: 70vw;
+                    max-height: 70vh;
+                    float: left;
+                }
+                
+                #clipSidebar {
+                }
+            }
+            
+            @media screen and (orientation: portrait) {
+                .video {
+                    width: 100vw;
+                    max-height: 70vh;
+                }
+                
+                #clipSidebar {
+                }
+            }
+                
+            
+            #clipSidebar .clip {
+                display: flex;
+            }
+            #clipSidebar .clipThumbnail {
+                max-width: 25%;
+                margin-right: 5%;
+                object-fit: contain;
+            }
+            #clipSidebar .currentClip {
+                font-weight: bold;
+            }
+            
+            #clipSidebar .currentClip .isActiveDisplay:after {
+                content: "(Watching)";
+            }
+            
+            .clip > .yetAnotherMotherFuckingDiv {
+                display: flex;
+                flex-direction: column;
+            }
+            .clip > .yetAnotherMotherFuckingDiv > p {
+                margin-top: 0;
+                margin-bottom: 0;
+            }
+            
+            .clip:not(.currentClip) p {
+                align-self: center;
+            }
+            .clip.currentClip p {
+                align-self: start;
+            }
+        </style>
+    </head>
+    <body>
+        <h1>MEOW: Moggy Eating Opportunity Watcher</h1>
+        
+        <video id="liveVideo" class="video" muted></video>
+        <video id="clipViewer" class="video hidden" muted controls></video>
+        
+        <div id="clipSidebar">
+            <div id="CVliveFeed" class="clip currentClip" onclick="unhighlightCurrent();currentSelected = 'CVliveFeed';highlightCurrent();activateLiveFeed();">
+                <img src="/resources/OpenClipArt_OnAirSign.svg" class="clipThumbnail"/>
+                <div class="yetAnotherMotherFuckingDiv">
+                    <p>Live Feed</p>
+                    <p class="isActiveDisplay"></p>
+                </div>
+            </div>
+            <h2>Recent Recordings</h2>
+            <div id="recent"></div>
+        </div>
+        
+        <script src="https://cdn.jsdelivr.net/npm/mpegts.js"></script>
+        <script>
+                var liveVideoElement = document.getElementById('liveVideo');
+                var clipVideoElement = document.getElementById("clipViewer");
+                var livePlayer = {destroy: function(){}};  // dummy value
+                
+                // PLAYBACK
+                function activateLiveFeed(){
+                    resetVideo();
+                    liveVideoElement.classList.remove("hidden");
+                    
+                    livePlayer = mpegts.createPlayer({
+                        type: 'mpegts',  // could also be mpegts, m2ts, flv
+                        isLive: true,
+                        url: "/live.ts"
+                    });
+                    livePlayer.attachMediaElement(liveVideoElement);
+                    livePlayer.load();
+                    livePlayer.play();
+                };
+                function activateClipPlayback(src){
+                    resetVideo();
+                    clipVideoElement.classList.remove("hidden");
+                    
+                    let source = document.createElement("source");
+                    source.setAttribute("src", src);
+                    source.setAttribute("type", "video/mp4");
+                    clipVideoElement.appendChild(source);
+                    clipVideoElement.load();
+                    clipVideoElement.play();
+                };
+                function resetVideo(){
+                    liveVideoElement.classList.add("hidden");
+                    livePlayer.destroy(); livePlayer = {destroy: function(){}};
+                    
+                    clipVideoElement.classList.add("hidden");
+                    while (clipVideoElement.firstChild != null) clipVideoElement.removeChild(clipVideoElement.firstChild);  // Clear video sources
+                    clipVideoElement.load();  // Force browser to acknowledge lack of video sources
+                }
+                activateLiveFeed();  // Autoplay the live feed
+                
+                // CLIP VIEWING
+                var clipListElement = document.getElementById("recent");
+                var cLHash = "";
+                var currentSelected = "CVliveFeed";
+                function updateClipView(){
+                    fetch("/api/recent.json").then((response) => response.json().then((jsonResponse) => {
+                        let newClipList = jsonResponse.value;
+                        let newHash = jsonResponse.hash;
+                        if (cLHash == newHash) return;  // No change
+                        cLHash = newHash;  // Otherwise, we update the list
+                        
+                        while (newClipList.firstChild != null) newClipList.removeChild(newClipList.firstChild);  // Clear old entries
+                        
+                        for (recentClip of newClipList){
+                            var clipDiv = document.createElement("div");
+                            clipDiv.classList.add("clip");
+                            clipDiv.id = "rclip_" + recentClip.id;
+                            
+                            clipDiv.onclick = function(id,src){ return () => {
+                                unhighlightCurrent();
+                                currentSelected = id;
+                                highlightCurrent();
+                                
+                                activateClipPlayback(src);
+                            };}(clipDiv.id,recentClip.src);
+                            
+                            var thumbnail = document.createElement("img");
+                            thumbnail.setAttribute("src", recentClip.thumb);
+                            thumbnail.classList.add("clipThumbnail");
+                            clipDiv.appendChild(thumbnail);
+                            
+                            var yetAnotherMotherFuckingDiv = document.createElement("div");
+                            yetAnotherMotherFuckingDiv.classList.add("yetAnotherMotherFuckingDiv");
+                            clipDiv.appendChild(yetAnotherMotherFuckingDiv);
+                            
+                            var beepBoop = document.createElement("p");
+                            beepBoop.innerHTML = recentClip.title;
+                            yetAnotherMotherFuckingDiv.appendChild(beepBoop);
+                            
+                            var adisp = document.createElement("p");
+                            adisp.classList.add("isActiveDisplay");
+                            yetAnotherMotherFuckingDiv.appendChild(adisp);
+                            
+                            clipListElement.append(clipDiv);
+                        }
+                        
+                        highlightCurrent();
+                    }));
+                };
+                
+                function highlightCurrent(){
+                    var el = document.getElementById(currentSelected);
+                    if (el === null) return;
+                    if (el.classList.contains("currentClip")) return;
+                    el.classList.add("currentClip");
+                }
+                function unhighlightCurrent(){
+                    var el = document.getElementById(currentSelected);
+                    if (el === null) return;
+                    if (!el.classList.contains("currentClip")) return;
+                    el.classList.remove("currentClip");
+                }
+                
+                updateClipView();
+        </script>
+    </body>
+</html>
