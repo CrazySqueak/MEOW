@@ -72,10 +72,6 @@ class FastMediaHandler(tornado.web.StaticFileHandler):
         return rval  # Return value
 
     def compute_etag(self):
-        if hasattr(self, "_item"):  # You want a hash? I'll give you a hash
-            if self._item.metadata.md5:
-                return self._item.metadata.md5
-            
         hasher = hashlib.sha1()
         for part in self._write_buffer:
             hasher.update(part)
