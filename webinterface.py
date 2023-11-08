@@ -2,59 +2,42 @@ import subprocess
 import time
 import os
 
-from globalsettings import OUTFILES_ROOT, RECENT_ROOT, ARCHIVE_ROOT, SURVEY_ROOT, LATEST_ROOT, FILENAME_FMT
+from config import getcampaths, get_filename_format, getcams
 
 import asyncio
 import tornado
 import hashlib
 
+def get_most_recent(cam):
+    root = getcampaths(cam)[1]
+    latest = sorted(os.listdir(root),reverse=True)
+    if not latest: return None  # None found
+    return os.path.join(root, latest[0])
+
 class MainHandler(tornado.web.RequestHandler):
     def get(self):
         self.render("web/index.html")
 
-BUFFER_SIZE = 20*188
-class LiveHandler(tornado.web.RequestHandler):
-    def get_most_recent(self):
-        return os.path.join(LATEST_ROOT, sorted(os.listdir(LATEST_ROOT),reverse=True)[0])
-        
+# API Functions
+class LiveInfoHandler(tornado.web.RequestHandler):
     async def get(self):
-        mostrecent = self.get_most_recent()
-        with open(mostrecent, "rb") as f:
-            # Start from the latest point if we're only just starting stream
-            try:
-                f.seek(-BUFFER_SIZE, os.SEEK_END)
-            except OSError:
-                f.seek(0, os.SEEK_END)
-            cur_pos = f.tell()
-        while True:
-            while self.get_most_recent() == mostrecent:
-                # Attempt to find any more bytes (if there are any)
-                try:
-                    with open(mostrecent, "rb") as f:
-                        f.seek(cur_pos)
-                        while (data := f.read(BUFFER_SIZE)):  # Read the new data
-                            self.write(data)
-                            cur_pos += len(data)
-                            await self.flush()
-                except (OSError, FileNotFoundError) as e:
-                    if "Stream is closed" in str(e): raise
-                    print("OS Error while streaming:", e)
-                    await asyncio.sleep(1)
-                    continue
-                await asyncio.sleep(0.5)  # We're done here
-            
-            # Newer file created. Close connection.
-            return
+        feeds = {}
+        for cam in getcams():
+            recent = get_most_recent(cam)
+            if recent: feeds[cam] = {"src": f"/live/{cam}.ts", "hash": hash(recent)}
+        self.write(feeds)
 
 class RecentListHandler(tornado.web.RequestHandler):
-    def get(self):
+    def get(self, cam):
+        RECENT_ROOT = getcampaths(cam)[2]
+        FILENAME_FMT = get_filename_format(cam)
         recent = []
         h = 0
         for fn in sorted(os.listdir(RECENT_ROOT), reverse=True):
             data = {
                 "id": fn,
-                "src": "/v/recent/" + fn,
-                "thumb": "/v/thumbGIF/" + os.path.splitext(fn)[0] + ".gif",
+                "src": f"/v/{cam}/recent/" + fn,
+                "thumb": f"/v/{cam}/thumbGIF/" + os.path.splitext(fn)[0] + ".gif",
                 "title": time.strftime("%a %d %b, %H:%M", time.strptime(os.path.splitext(os.path.basename(fn))[0], FILENAME_FMT))
                 }
             
@@ -62,7 +45,7 @@ class RecentListHandler(tornado.web.RequestHandler):
             h += hash(fn)
         self.write({"value": recent, "hash": h})
 
-
+# Media functions
 class FastMediaHandler(tornado.web.StaticFileHandler):
     # These two functions' existence speeds things up significantly and i have no clue how
     async def _flush(self, *args, **kwargs):
@@ -77,22 +60,52 @@ class FastMediaHandler(tornado.web.StaticFileHandler):
             hasher.update(part)
         return '"%s"' % hasher.hexdigest()
 
-def make_app():
-    return tornado.web.Application([
-        (r"/", MainHandler),
-        (r"/live.ts", LiveHandler),
+STREAMING_BUFFER_SIZE = 20*188
+class LiveHandler(tornado.web.RequestHandler):
+    async def get(self, cam):
+        file = get_most_recent(cam)
+        with open(file, "rb") as f:
+            # Start from the latest point if we're only just starting stream
+            try:
+                f.seek(-STREAMING_BUFFER_SIZE, os.SEEK_END)
+            except OSError:
+                f.seek(0, os.SEEK_END)
+            cur_pos = f.tell()
+        while True:
+            # Attempt to find any more bytes (if there are any)
+            with open(file, "rb") as f:
+                f.seek(cur_pos)
+                while (data := f.read(STREAMING_BUFFER_SIZE)):  # Read the new data
+                    self.write(data)
+                    cur_pos += len(data)
+                    await self.flush()
+            await asyncio.sleep(0.5)  # We're done here
 
-        (r"/api/recent.json", RecentListHandler),
+def make_app():
+    routes = [
+        (r"/", MainHandler),
+        (r"/live/(.*).ts", LiveHandler),
+
+        (r"/api/recent/(.*).json", RecentListHandler),
+        (r"/api/live.json", LiveInfoHandler),
         
         (r"/resources/(.*)", FastMediaHandler, {"path": "web/resources"}),
-        (r"/v/recent/(.*)", FastMediaHandler, {"path": RECENT_ROOT}),
-        (r"/v/thumbGIF/(.*)", FastMediaHandler, {"path": SURVEY_ROOT}),
-        (r"/v/old/(.*)", FastMediaHandler, {"path": ARCHIVE_ROOT}),
-    ])
+    ]
+
+    for cam in getcams():
+        RECENT_ROOT, ARCHIVE_ROOT, SURVEY_ROOT = getcampaths(cam)[2:5]
+        routes += [
+            (rf"/v/{cam}/recent/(.*)", FastMediaHandler, {"path": RECENT_ROOT}),
+            (rf"/v/{cam}/thumbGIF/(.*)", FastMediaHandler, {"path": SURVEY_ROOT}),
+            (rf"/v/{cam}/old/(.*)", FastMediaHandler, {"path": ARCHIVE_ROOT}),
+        ]
+    
+    return tornado.web.Application(routes)
 
 async def main():
     app = make_app()
     app.listen(80)
+    print("Server listening on port 80...")
     shutdown_event = asyncio.Event()
     await shutdown_event.wait()
 

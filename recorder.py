@@ -8,7 +8,15 @@ from multiprocessing.pool import ThreadPool
 import _thread
 import sys
 
-from globalsettings import OUTFILES_ROOT, RECENT_ROOT, ARCHIVE_ROOT, SURVEY_ROOT, LATEST_ROOT, FILENAME_FMT
+from config import getcampaths, get_filename_format, get_archive_params
+if len(sys.argv) < 2:
+    print("Usage: recorder.py <camID>")
+    sys.exit(1)
+CAMID = sys.argv[1]
+
+OUTFILES_ROOT, LATEST_ROOT, RECENT_ROOT, ARCHIVE_ROOT, SURVEY_ROOT = getcampaths(CAMID) 
+FILENAME_FMT = get_filename_format(CAMID)
+ARCHIVE_PARAMS = get_archive_params(CAMID)
 
 from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn, TimeElapsedColumn
@@ -53,8 +61,8 @@ if not DEVICES:
 print("Selected Devices:", ", ".join(DEVICES))
 FFMPEG_DEVICE_ARGS = [x for device in DEVICES for x in ("-i", device)]  # FLATMAP WOO!!
 
-MAX_RECENT = 24
-MAX_FULLFILE_LEN = 3600
+MAX_RECENT = ARCHIVE_PARAMS[0]
+MAX_FULLFILE_LEN = ARCHIVE_PARAMS[1]
 
 def mux_video(src):
     muxed_file = os.path.join(RECENT_ROOT, os.path.splitext(os.path.basename(src))[0]) + ".mp4"
@@ -111,9 +119,9 @@ def archive_video(src):
 
 def get_survey_name(src):
     return os.path.join(SURVEY_ROOT, os.path.splitext(os.path.basename(src))[0]) + ".gif"
-SURVEY_FPS = 4
-SURVEY_SPEED = 60
-MAX_SURVEY_GIFS = 100
+SURVEY_FPS = ARCHIVE_PARAMS[2]
+SURVEY_SPEED = ARCHIVE_PARAMS[3]
+MAX_SURVEY_GIFS = ARCHIVE_PARAMS[4]
 def gengif(src):
     gif_file = get_survey_name(src)
     if os.path.exists(gif_file): return 

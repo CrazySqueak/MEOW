@@ -86,19 +86,33 @@
         
         <script src="https://cdn.jsdelivr.net/npm/mpegts.js"></script>
         <script>
+                // SELECTION
+                var currentSelected = "CVliveFeed";
+                function highlightCurrent(){
+                    var el = document.getElementById(currentSelected);
+                    if (el === null) return;
+                    if (el.classList.contains("currentClip")) return;
+                    el.classList.add("currentClip");
+                }
+                function unhighlightCurrent(){
+                    var el = document.getElementById(currentSelected);
+                    if (el === null) return;
+                    if (!el.classList.contains("currentClip")) return;
+                    el.classList.remove("currentClip");
+                }
+                
+                // PLAYBACK
                 var liveVideoElement = document.getElementById('liveVideo');
                 var clipVideoElement = document.getElementById("clipViewer");
                 var livePlayer = {destroy: function(){}};  // dummy value
-                
-                // PLAYBACK
-                function activateLiveFeed(){
+                function activateLiveFeed(src){
                     resetVideo();
                     liveVideoElement.classList.remove("hidden");
                     
                     livePlayer = mpegts.createPlayer({
                         type: 'mpegts',  // could also be mpegts, m2ts, flv
                         isLive: true,
-                        url: "/live.ts"
+                        url: src
                     });
                     livePlayer.attachMediaElement(liveVideoElement);
                     livePlayer.load();
@@ -123,14 +137,13 @@
                     while (clipVideoElement.firstChild != null) clipVideoElement.removeChild(clipVideoElement.firstChild);  // Clear video sources
                     clipVideoElement.load();  // Force browser to acknowledge lack of video sources
                 }
-                activateLiveFeed();  // Autoplay the live feed
+                activateLiveFeed('/live/catfoodhome.ts');  // Autoplay the live feed
                 
                 // CLIP VIEWING
                 var clipListElement = document.getElementById("recent");
                 var cLHash = "";
-                var currentSelected = "CVliveFeed";
                 function updateClipView(){
-                    fetch("/api/recent.json").then((response) => response.json().then((jsonResponse) => {
+                    fetch("/api/recent/catfoodhome.json").then((response) => response.json().then((jsonResponse) => {
                         let newClipList = jsonResponse.value;
                         let newHash = jsonResponse.hash;
                         if (cLHash == newHash) return;  // No change
@@ -174,19 +187,6 @@
                         highlightCurrent();
                     }));
                 };
-                
-                function highlightCurrent(){
-                    var el = document.getElementById(currentSelected);
-                    if (el === null) return;
-                    if (el.classList.contains("currentClip")) return;
-                    el.classList.add("currentClip");
-                }
-                function unhighlightCurrent(){
-                    var el = document.getElementById(currentSelected);
-                    if (el === null) return;
-                    if (!el.classList.contains("currentClip")) return;
-                    el.classList.remove("currentClip");
-                }
                 
                 updateClipView();
         </script>
