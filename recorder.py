@@ -90,7 +90,7 @@ def mux_video(src):
     console.log("Muxed:", os.path.basename(muxed_file), highlight=False)
 
 MAX_RECENT = ARCHIVE_PARAMS[0]
-ARCHIVE_RESOLUTION_H = ARCHIVE_PARAMS[6]
+ARCHIVE_RESOLUTION_H = ARCHIVE_PARAMS[5]
 def archive_video(src):
     archive_file = os.path.join(ARCHIVE_ROOT, os.path.splitext(os.path.basename(src))[0]) + ".mp4"
     if not os.path.exists(src): return
